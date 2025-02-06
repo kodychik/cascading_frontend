@@ -1,174 +1,364 @@
-// import Image from "next/image";
-
-// export default function Home() {
-//   return (
-//     <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-//       <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-//         <Image
-//           className="dark:invert"
-//           src="/next.svg"
-//           alt="Next.js logo"
-//           width={180}
-//           height={38}
-//           priority
-//         />
-//         <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-//           <li className="mb-2">
-//             Get started by editing{" "}
-//             <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-//               app/page.tsx
-//             </code>
-//             .
-//           </li>
-//           <li>Save and see your changes instantly.</li>
-//         </ol>
-
-//         <div className="flex gap-4 items-center flex-col sm:flex-row">
-//           <a
-//             className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-//             href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//             target="_blank"
-//             rel="noopener noreferrer"
-//           >
-//             <Image
-//               className="dark:invert"
-//               src="/vercel.svg"
-//               alt="Vercel logomark"
-//               width={20}
-//               height={20}
-//             />
-//             Deploy now
-//           </a>
-//           <a
-//             className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-//             href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//             target="_blank"
-//             rel="noopener noreferrer"
-//           >
-//             Read our docs
-//           </a>
-//         </div>
-//       </main>
-//       <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-//         <a
-//           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-//           href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           <Image
-//             aria-hidden
-//             src="/file.svg"
-//             alt="File icon"
-//             width={16}
-//             height={16}
-//           />
-//           Learn
-//         </a>
-//         <a
-//           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-//           href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           <Image
-//             aria-hidden
-//             src="/window.svg"
-//             alt="Window icon"
-//             width={16}
-//             height={16}
-//           />
-//           Examples
-//         </a>
-//         <a
-//           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-//           href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           <Image
-//             aria-hidden
-//             src="/globe.svg"
-//             alt="Globe icon"
-//             width={16}
-//             height={16}
-//           />
-//           Go to nextjs.org →
-//         </a>
-//       </footer>
-//     </div>
-//   );
-// }
-
-// app/page.tsx
 "use client";
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from "next/image";
 
+
+type AnalysisResult = {
+  name: string;
+  account_info: {
+    account_number: string;
+    account_type: string;
+    bank: string;
+  };
+  financial_summary: {
+    statement_period: string;
+    opening_balance: string;
+    closing_balance: string;
+    total_deposits: string;
+    total_withdrawals: string;
+    average_monthly_balance: string;
+  };
+  analysis: {
+    decision: string;
+    stats: {
+      monthly_income: string;
+      spending_patterns: string;
+      balance_trends: string;
+      risk_factors: string;
+    };
+    conclusion: string;
+  };
+  raw_analysis: string;
+};
+
+// Then, update the right side analysis results section
+
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
-  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [files, setFiles] = useState<FileList | null>(null);
+  const [results, setResults] = useState<AnalysisResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [feedback, setFeedback] = useState<{ [key: string]: string }>({});
+  const [error, setError] = useState<string | null>(null);
+
+  const [messages, setMessages] = useState<Array<{type: 'user' | 'bot', content: string}>>([]);
+  const [currentMessage, setCurrentMessage] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
 
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) return;
+    if (!files || files.length === 0) return;
 
     setIsLoading(true);
+    setError(null); // Add error state if not already present
     const formData = new FormData();
-    formData.append('pdf', file);
+    Array.from(files).forEach(file => {
+      formData.append('files[]', file);
+    });
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/analyze', {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         body: formData,
       });
+
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        const errorData = await response.text(); // First get the raw response
+        let errorMessage;
+        try {
+          const jsonError = JSON.parse(errorData);
+          errorMessage = jsonError.error || 'Failed to analyze files';
+        } catch {
+          errorMessage = errorData || 'Failed to analyze files';
+        }
+        throw new Error(errorMessage);
+      }
       
       const data = await response.json();
-      setAnalysis(data.decision);
+      if (!data.results) {
+        throw new Error('Invalid response format');
+      }
+      console.log("Data:", data);
+
+
+      setResults(data.results);
+      console.log("Results:", results, "Loading:", isLoading);
+
     } catch (error) {
-      console.error('Error analyzing PDF:', error);
-      setAnalysis('Error analyzing document');
+      console.error('Error analyzing PDFs:', error);
+      setError(error instanceof Error ? error.message : 'An error occurred');
+      setResults([]);
     } finally {
       setIsLoading(false);
     }
+  };  
+
+  const handleFeedbackSubmit = async (filename: string) => {
+    // TODO: Implement feedback submission to backend
+    console.log(`Feedback for ${filename}:`, feedback[filename]);
+  };
+  // Add this function to handle chat submission
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentMessage.trim()) return;
+    
+    // Add user message to chat
+    setMessages(prev => [...prev, { type: 'user', content: currentMessage }]);
+    setCurrentMessage('');
+    
+    // TODO: Implement bot response logic here
+    // For now, just echo back
+    setMessages(prev => [...prev, { type: 'bot', content: `You said: ${currentMessage}` }]);
   };
 
+  // Add this useEffect to scroll to bottom of chat
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
   return (
-    <div className="min-h-screen p-8">
-      <header className="mb-12 text-center">
-        <h1 className="text-4xl font-bold mb-4">Bank Teller Dashboard</h1>
-        <p className="text-gray-600">Upload bank statement PDF for loan eligibility analysis</p>
-      </header>
+    <div className="min-h-screen p-8 flex">
+      {/*Left Side - Chat & Upload Interface*/}
+      {/* <div className="w-1/2 pr-4">
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Bank Statement Analysis</h1>
+          <p className="text-gray-600">Upload 1-20 bank statements for loan eligibility analysis</p>
+        </header>
 
-      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <form onSubmit={handleFileUpload} className="space-y-6">
-          <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-8">
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="mb-4"
-            />
-            <button
-              type="submit"
-              disabled={!file || isLoading}
-              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? 'Analyzing...' : 'Analyze Statement'}
-            </button>
-          </div>
-        </form>
-
-        {analysis && (
-          <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-            <h2 className="text-xl font-semibold mb-4">Loan Eligibility Decision:</h2>
-            <div className="p-4 bg-white rounded-md shadow-sm">
-              {analysis}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <form onSubmit={handleFileUpload} className="space-y-4">
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <input
+                type="file"
+                accept="application/pdf"
+                multiple
+                onChange={(e) => setFiles(e.target.files)}
+                className="mb-4"
+              />
+              <p className="text-sm text-gray-500 mb-2">
+                Upload up to 20 PDF bank statements
+              </p>
+              <button
+                type="submit"
+                disabled={!files || isLoading}
+                className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? 'Analyzing...' : 'Analyze Statements'}
+              </button>
+              
             </div>
+          </form>
+        </div>
+        {error && (
+                <div className="mt-2 text-red-500 text-sm">
+                  {error}
+                </div>
+              )}
+      </div> */}
+      {/*Left Side - Chat & Upload Interface*/}
+      <div className="w-1/2 pr-4 flex flex-col h-[calc(100vh-4rem)]"> {/* Changed height */}
+        <header className="flex-shrink-0 mb-4"> {/* Added flex-shrink-0 */}
+          <h1 className="text-3xl font-bold mb-2">Bank Statement Analysis</h1>
+          <p className="text-gray-600">Upload statements and chat for detailed analysis</p>
+        </header>
+
+        {/* File Upload Section */}
+        <div className="flex-shrink-0 bg-white rounded-lg shadow-md p-4 mb-4"> {/* Added flex-shrink-0 */}
+          <form onSubmit={handleFileUpload}>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+              <input
+                type="file"
+                accept="application/pdf"
+                multiple
+                onChange={(e) => setFiles(e.target.files)}
+                className="mb-2"
+              />
+              <p className="text-sm text-gray-500 mb-2">
+                Upload up to 20 PDF bank statements
+              </p>
+              <button
+                type="submit"
+                disabled={!files || isLoading}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {isLoading ? 'Analyzing...' : 'Analyze Statements'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Chat Interface */}
+        <div className="flex-1 min-h-0 bg-white rounded-lg shadow-md p-4 flex flex-col"> {/* Added min-h-0 */}
+          {/* Chat Messages */}
+          <div className="flex-1 overflow-y-auto mb-4 space-y-4">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-lg p-3 ${
+                    message.type === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-black'
+                  }`}
+                >
+                  {message.content}
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Chat Input */}
+          <div className="flex-shrink-0"> {/* Added flex-shrink-0 */}
+            <form onSubmit={handleChatSubmit} className="flex gap-2">
+              <input
+                type="text"
+                value={currentMessage}
+                onChange={(e) => setCurrentMessage(e.target.value)}
+                placeholder="Ask questions about the analysis..."
+                className="flex-grow p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="submit"
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              >
+                Send
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {error && (
+          <div className="flex-shrink-0 mt-2 text-red-500 text-sm"> {/* Added flex-shrink-0 */}
+            {error}
           </div>
         )}
       </div>
+      
+
+      {/* Right Side - Analysis Results */}
+      <div className="w-1/2 pl-4 overflow-y-auto max-h-screen">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : results.length > 0 ? (
+          results.map((result, index) => (
+            <div key={index} className="bg-white rounded-lg shadow-md p-6 mb-6">
+              {/* Customer Overview */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">{result.name}</h2>
+                  <p className="text-gray-500">{result.account_info.bank} • {result.account_info.account_type}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-700">Account Number</p>
+                  <p className="font-mono text-gray-400">{result.account_info.account_number}</p>
+                </div>
+              </div>
+
+              {/* Loan Decision Section */}
+              <div className="mb-8 p-4 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-gray-800 text-xl font-semibold">Loan Decision</h3>
+                  <div className="flex items-center">
+                    {/* Add a confidence indicator */}
+                    <div className="w-32 h-2 bg-gray-200 rounded-full mr-3">
+                      <div 
+                        className={`h-full rounded-full ${
+                          result.analysis.decision.toLowerCase().includes('approve') 
+                            ? 'bg-green-500' 
+                            : 'bg-red-500'
+                        }`}
+                        style={{ width: '80%' }} // You can make this dynamic based on confidence
+                      />
+                    </div>
+                    <span className="text-sm font-medium">80% Confidence</span>
+                  </div>
+                </div>
+                <p className="text-lg font-medium text-gray-800">{result.analysis.decision}</p>
+              </div>
+
+              {/* Financial Overview */}
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-1">Total Deposits</p>
+                  <p className="text-xl font-bold text-green-600">{result.financial_summary.total_deposits}</p>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-1">Total Withdrawals</p>
+                  <p className="text-xl font-bold text-red-600">{result.financial_summary.total_withdrawals}</p>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-1">Average Balance</p>
+                  <p className="text-xl font-bold text-blue-600">{result.financial_summary.average_monthly_balance}</p>
+                </div>
+              </div>
+
+              {/* Analysis Details */}
+              <div className="space-y-6 text-gray-800">
+                <div className="border-l-4 border-blue-500 pl-4">
+                  <h4 className="text-lg font-semibold mb-2">Monthly Income Analysis</h4>
+                  <p className="text-gray-700">{result.analysis.stats.monthly_income}</p>
+                </div>
+                
+                <div className="border-l-4 border-purple-500 pl-4">
+                  <h4 className="text-lg font-semibold mb-2">Spending Patterns</h4>
+                  <p className="text-gray-700">{result.analysis.stats.spending_patterns}</p>
+                </div>
+                
+                <div className="border-l-4 border-green-500 pl-4">
+                  <h4 className="text-lg font-semibold mb-2">Balance Trends</h4>
+                  <p className="text-gray-700">{result.analysis.stats.balance_trends}</p>
+                </div>
+                
+                <div className="border-l-4 border-red-500 pl-4">
+                  <h4 className="text-lg font-semibold mb-2">Risk Factors</h4>
+                  <p className="text-gray-700">{result.analysis.stats.risk_factors}</p>
+                </div>
+              </div>
+
+              {/* Final Conclusion */}
+              <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h4 className="text-lg font-semibold mb-2 text-gray-800">Final Assessment</h4>
+                <p className="text-gray-700">{result.analysis.conclusion}</p>
+              </div>
+
+              {/* Feedback Section */}
+              <div className="mt-8 pt-6 border-t">
+                <h4 className="text-gray-800 text-lg font-semibold mb-3">Teller Feedback</h4>
+                <textarea
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  rows={3}
+                  placeholder="Provide feedback on this analysis..."
+                  value={feedback[result.name] || ''}
+                  onChange={(e) => setFeedback(prev => ({
+                    ...prev,
+                    [result.name]: e.target.value
+                  }))}
+                />
+                <button
+                  onClick={() => handleFeedbackSubmit(result.name)}
+                  className="mt-2 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors"
+                >
+                  Submit Feedback
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="text-center text-gray-500 mt-8">
+            No analysis results yet. Upload bank statements to begin.
+          </div>
+        )}
+      </div>
+      
     </div>
   );
 }
